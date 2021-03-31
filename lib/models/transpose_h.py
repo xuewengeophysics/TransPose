@@ -451,7 +451,6 @@ class TransPoseH(nn.Module):
         self.stage3, pre_stage_channels = self._make_stage(
             self.stage3_cfg, num_channels)
 
-
         self.stage4_cfg = extra['STAGE4']
         num_channels = self.stage4_cfg['NUM_CHANNELS']
         block = blocks_dict[self.stage4_cfg['BLOCK']]
