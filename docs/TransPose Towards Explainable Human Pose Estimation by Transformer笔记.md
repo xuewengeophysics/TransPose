@@ -80,6 +80,8 @@ Transformer编码器中的最后一个注意力层，它的注意力得分数可
 
 **疑问：动态权重？**
 
+**个人理解**：各个token之间的依赖关系是随着图像的不同而变化的（它是由图像特征和神经网络权重计算得到的，图像不同，计算出的token间相关性就不同）
+
 详细推导可以参考附录G中的梯度分析。
 
 针对某个预测的关键点i，如果那些点集合J中的各个点j对点i具有较高的注意力得分数，那么说明它们与点i有依赖关系，它们对这个预测点i有较大的贡献。(Those locations J, whose element j has higher attention score (≥ δ) with i, are the dependencies that significantly contribute to the prediction.)
@@ -233,7 +235,7 @@ DEBUG:
 
 ### 3.2 Process
 
-lib/models/transpose_h.py
++ TransPoseH: lib/models/transpose_h.py
 
 ```python
 class TransPoseH(nn.Module):
@@ -333,6 +335,33 @@ class TransPoseH(nn.Module):
         x = self.final_layer(x)  ##输出heatmap
 
         return x
+```
+
+
+
++ self.global_encoder: lib/models/transpose_h.py
+
+```python
+self.global_encoder = TransformerEncoder(encoder_layer, encoder_layers_num)
+```
+
+
+
+```python
+encoder_layer = TransformerEncoderLayer(d_model=d_model, nhead=n_head, dim_feedforward=dim_feedforward, activation='relu')
+```
+
+
+
+```python
+##cfg.MODEL.DIM_MODEL为64，即：embedding的维度为64
+d_model = cfg.MODEL.DIM_MODEL
+##cfg.MODEL.DIM_FEEDFORWARD为128，即：前馈网络通道数为128
+dim_feedforward = cfg.MODEL.DIM_FEEDFORWARD
+##cfg.MODEL.ENCODER_LAYERS为4，即：encoder层数为4
+encoder_layers_num = cfg.MODEL.ENCODER_LAYERS
+##cfg.MODEL.N_HEAD为1，即：单头注意力
+n_head = cfg.MODEL.N_HEAD
 ```
 
 

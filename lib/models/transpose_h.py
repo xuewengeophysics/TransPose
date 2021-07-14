@@ -462,21 +462,28 @@ class TransPoseH(nn.Module):
         self.stage4, pre_stage_channels = self._make_stage(
             self.stage4_cfg, num_channels, multi_scale_output=False)
 
+        ##cfg.MODEL.DIM_MODEL为64，即：embedding的维度为64
         d_model = cfg.MODEL.DIM_MODEL
+        ##cfg.MODEL.DIM_FEEDFORWARD为128，即：前馈网络通道数为128
         dim_feedforward = cfg.MODEL.DIM_FEEDFORWARD
+        ##cfg.MODEL.ENCODER_LAYERS为4，即：encoder层数为4
         encoder_layers_num = cfg.MODEL.ENCODER_LAYERS
+        ##cfg.MODEL.N_HEAD为1，即：单头注意力
         n_head = cfg.MODEL.N_HEAD
+        ##cfg.MODEL.POS_EMBEDDING为sine
         pos_embedding_type = cfg.MODEL.POS_EMBEDDING
+        ##cfg.MODEL.IMAGE_SIZE为[192, 256]
         w, h = cfg.MODEL.IMAGE_SIZE
 
         self.reduce = nn.Conv2d(pre_stage_channels[0], d_model, 1, bias=False)
         self._make_position_embedding(w, h, d_model, pos_embedding_type)
 
+        return_atten_map = True
         encoder_layer = TransformerEncoderLayer(
             d_model=d_model, nhead=n_head, dim_feedforward=dim_feedforward,
-            activation='relu')
+            activation='relu', return_atten_map=return_atten_map)
         self.global_encoder = TransformerEncoder(
-            encoder_layer, encoder_layers_num)
+            encoder_layer, encoder_layers_num, return_atten_map=return_atten_map)
 
         self.final_layer = nn.Conv2d(
             in_channels=d_model,
@@ -659,11 +666,18 @@ class TransPoseH(nn.Module):
                 x_list.append(y_list[i])
         y_list = self.stage4(x_list)
 
+        ##y_list[0].shape为torch.Size([BS, 32, 64, 48])，高分辨率branch的张量的通道数为32
+        ##[BS, 32, 64, 48] -> [BS, 64, 64, 48]，输入神经网络的张量维度为[BS, 3, 256, 192]，经过stem网络后，4倍下采样
         x = self.reduce(y_list[0])
         bs, c, h, w = x.shape
+        ##[BS, 64, 64, 48] -> [BS, 64, 3072] -> [3072, BS, 64]
         x = x.flatten(2).permute(2, 0, 1)
-        x = self.global_encoder(x, pos=self.pos_embedding)
+        ##x.shape为torch.Size([3072, BS, 64])
+        ##atten_maps是4个encoder层的attention map，atten_maps.shape为torch.Size([4, BS, 3072, 3072])
+        x, atten_maps = self.global_encoder(x, pos=self.pos_embedding)
+        ##[3072, BS, 64] -> [BS, 64, 3072] -> [BS, 64, 64, 48]
         x = x.permute(1, 2, 0).contiguous().view(bs, c, h, w)
+        ##[BS, 64, 64, 48] -> [BS, 17, 64, 48]
         x = self.final_layer(x)
 
         return x
